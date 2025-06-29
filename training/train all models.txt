@@ -1,0 +1,69 @@
+# === DEFINE MODELS === 
+
+models = {
+     "CatBoost": CatBoostClassifier(iterations=300, learning_rate=0.1, depth=6, 
+                                    cat_features=cat_features, verbose=0, random_seed=42),
+     "SVM": SVC(probability=True, kernel='rbf', random_state=42),
+     "kNN": KNeighborsClassifier(n_neighbors=5),
+     "RandomForest": RandomForestClassifier(n_estimators=100, random_state=42),
+     "LogisticRegression": LogisticRegression(max_iter=1000, random_state=42)
+ }
+
+# === TRAIN AND EVALUATE ALL MODELS ===
+
+for name, model in models.items():
+     print(f"\n=== {name} ===")
+    
+     if name == "CatBoost":
+         model.fit(X_train_cat, y_train)
+         y_pred = model.predict(X_test_cat)
+         y_proba = model.predict_proba(X_test_cat)[:, 1]
+         importance = pd.DataFrame({
+             "Feature": model.feature_names_,
+             "Importance": model.get_feature_importance()
+         }).sort_values(by="Importance", ascending=False)
+     else:
+         model.fit(X_train_scaled, y_train)
+         y_pred = model.predict(X_test_scaled)
+         y_proba = model.predict_proba(X_test_scaled)[:, 1]
+         try:
+             importance = pd.DataFrame({
+                 "Feature": X.columns,
+                 "Importance": model.feature_importances_
+             }).sort_values(by="Importance", ascending=False)
+         except:
+             importance = None
+
+     acc = accuracy_score(y_test, y_pred)
+     recall = recall_score(y_test, y_pred)
+     cm = confusion_matrix(y_test, y_pred)
+     specificity = cm[0][0] / (cm[0][0] + cm[0][1])
+     auc = roc_auc_score(y_test, y_proba)
+
+     print(classification_report(y_test, y_pred))
+     print(f"Accuracy: {acc:.2f}")
+     print(f"Sensitivity (Recall): {recall:.2f}")
+     print(f"Specificity: {specificity:.2f}")
+     print(f"AUC-ROC: {auc:.2f}")
+    
+     # === PLOT ROC CURVE ===
+     fpr, tpr, _ = roc_curve(y_test, y_proba)
+     fpr_interpolate = np.linspace(0, 1, 5)
+     tpr_interpolate = np.interp(fpr_interpolate, fpr, tpr)
+     results[name] = {
+         "fpr": fpr,
+         "tpr": tpr,
+         "auc": auc,
+         "importance": importance
+     }
+    
+     plt.figure(figsize=(10, 6))
+     plt.plot(fpr_interpolate, tpr_interpolate, label=f"AUC = {auc:.2f}", color="blue")
+     # plt.step(fpr_interpolate, tpr_interpolate, where='post', label='AUC = ...', linewidth=2)
+     plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
+     plt.xlabel("False Positive Rate")
+     plt.ylabel("True Positive Rate")
+     plt.title("ROC Curve")
+     plt.legend()
+     plt.grid()
+     plt.show()
